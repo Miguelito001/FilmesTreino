@@ -327,8 +327,30 @@ export function getTrailerUrl(videos: TMDBVideoResult[]): string | null {
                   youtubeVideos[0];
 
   if (trailer) {
-    return `https://www.youtube.com/embed/${trailer.key}`;
+    // Usa youtube-nocookie.com para melhor compatibilidade com embeds
+    return `https://www.youtube-nocookie.com/embed/${trailer.key}`;
   }
 
   return null;
+}
+
+// Retorna a key do trailer para construir thumbnail e link direto
+export function getTrailerKey(videos: TMDBVideoResult[]): string | null {
+  if (!videos || videos.length === 0) {
+    return null;
+  }
+
+  const youtubeVideos = videos.filter(
+    (v) => v.site === "YouTube" && v.key && v.key.length > 0
+  );
+
+  if (youtubeVideos.length === 0) {
+    return null;
+  }
+
+  const trailer = youtubeVideos.find((v) => v.type === "Trailer") ||
+                  youtubeVideos.find((v) => v.type === "Teaser") ||
+                  youtubeVideos[0];
+
+  return trailer?.key || null;
 }

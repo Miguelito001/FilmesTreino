@@ -288,6 +288,17 @@ interface DetailModalProps {
 
 function DetailModal({ content, details, genres, onClose }: DetailModalProps) {
   const trailerUrl = details?.videos ? getTrailerUrl(details.videos) : null;
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Reset playing state when modal closes/opens
+  useEffect(() => {
+    if (!content) {
+      setIsPlaying(false);
+    }
+  }, [content]);
+
+  // Extrai a key do vídeo para a thumbnail
+  const videoKey = trailerUrl?.split("/embed/")[1]?.split("?")[0] || null;
 
   return (
     <Dialog open={!!content} onOpenChange={onClose}>
@@ -323,18 +334,53 @@ function DetailModal({ content, details, genres, onClose }: DetailModalProps) {
 
               {/* ── Coluna esquerda: trailer ou backdrop ── */}
               <div className="lg:w-[60%] flex-shrink-0">
-                {trailerUrl ? (
-                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black">
-                    <iframe
-                      width="100%"
-                      height="100%"
-                      src={`${trailerUrl}&autoplay=1&mute=0`}
-                      title={`Trailer — ${getTitle(content)}`}
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                      className="w-full h-full"
-                    />
+                {trailerUrl && videoKey ? (
+                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black relative">
+                    {isPlaying ? (
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        src={`${trailerUrl}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`}
+                        title={`Trailer — ${getTitle(content)}`}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="w-full h-full"
+                      />
+                    ) : (
+                      <>
+                        {/* Thumbnail do YouTube */}
+                        <img
+                          src={`https://img.youtube.com/vi/${videoKey}/maxresdefault.jpg`}
+                          alt={`Trailer — ${getTitle(content)}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // Fallback para thumbnail de menor resolução
+                            (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${videoKey}/hqdefault.jpg`;
+                          }}
+                        />
+                        {/* Overlay com botão de play */}
+                        <button
+                          onClick={() => setIsPlaying(true)}
+                          className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/20 transition-colors group"
+                          aria-label="Reproduzir trailer"
+                        >
+                          <div className="bg-red-600 hover:bg-red-700 rounded-full p-4 transform group-hover:scale-110 transition-transform shadow-xl">
+                            <Play className="w-10 h-10 text-white fill-white" />
+                          </div>
+                        </button>
+                      </>
+                    )}
+                    {/* Link para abrir no YouTube — sempre visível */}
+                    <a
+                      href={`https://www.youtube.com/watch?v=${videoKey}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute bottom-3 right-3 bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 shadow-lg"
+                    >
+                      <Play className="w-3 h-3 fill-white" />
+                      Assistir no YouTube
+                    </a>
                   </div>
                 ) : (
                   <div className="w-full aspect-video rounded-xl overflow-hidden bg-black">
