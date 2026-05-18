@@ -183,6 +183,71 @@ export async function getContentDetails(
   }
 }
 
+export async function getPopularContent(
+  type: "movie" | "tv",
+  page = 1
+): Promise<TMDBContent[]> {
+  if (!API_KEY) throw new Error("TMDB_API_KEY não está configurada");
+  try {
+    const response = await fetch(
+      `${BASE_URL}/${type}/popular?api_key=${API_KEY}&language=pt-BR&page=${page}`,
+      { next: { revalidate: 3600 } }
+    );
+    if (!response.ok) throw new Error(`Erro na API TMDB: ${response.status}`);
+    const data = await response.json();
+    return (data.results || []).map((item: any) => ({
+      ...item,
+      media_type: type,
+    }));
+  } catch (error) {
+    console.error("Erro ao buscar populares:", error);
+    return [];
+  }
+}
+
+export async function getTopRatedContent(
+  type: "movie" | "tv"
+): Promise<TMDBContent[]> {
+  if (!API_KEY) throw new Error("TMDB_API_KEY não está configurada");
+  try {
+    const response = await fetch(
+      `${BASE_URL}/${type}/top_rated?api_key=${API_KEY}&language=pt-BR`,
+      { next: { revalidate: 3600 } }
+    );
+    if (!response.ok) throw new Error(`Erro na API TMDB: ${response.status}`);
+    const data = await response.json();
+    return (data.results || []).map((item: any) => ({
+      ...item,
+      media_type: type,
+    }));
+  } catch (error) {
+    console.error("Erro ao buscar top rated:", error);
+    return [];
+  }
+}
+
+export async function getContentByGenre(
+  type: "movie" | "tv",
+  genreId: number
+): Promise<TMDBContent[]> {
+  if (!API_KEY) throw new Error("TMDB_API_KEY não está configurada");
+  try {
+    const response = await fetch(
+      `${BASE_URL}/discover/${type}?api_key=${API_KEY}&language=pt-BR&with_genres=${genreId}&sort_by=popularity.desc`,
+      { next: { revalidate: 3600 } }
+    );
+    if (!response.ok) throw new Error(`Erro na API TMDB: ${response.status}`);
+    const data = await response.json();
+    return (data.results || []).map((item: any) => ({
+      ...item,
+      media_type: type,
+    }));
+  } catch (error) {
+    console.error("Erro ao buscar por gênero:", error);
+    return [];
+  }
+}
+
 export async function getGenres(
   type: "movie" | "tv"
 ): Promise<TMDBGenre[]> {
