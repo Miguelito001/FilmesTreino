@@ -68,8 +68,9 @@ function ContentCard({ content, onSelect, wide = false }: ContentCardProps) {
     <button
       onClick={() => onSelect(content)}
       className={cn(
-        "group relative flex-shrink-0 cursor-pointer rounded-md overflow-visible transition-all duration-300",
-        "hover:z-20",
+        "group relative flex-shrink-0 cursor-pointer rounded-lg overflow-hidden",
+        "transition-transform duration-300 hover:scale-105 hover:z-20",
+        "ring-0 hover:ring-2 hover:ring-white/30",
         wide ? "w-64 h-36" : "w-40 h-60 md:w-44 md:h-64"
       )}
     >
@@ -80,30 +81,30 @@ function ContentCard({ content, onSelect, wide = false }: ContentCardProps) {
             : getPosterUrl(content.poster_path, "w500")
         }
         alt={getTitle(content)}
-        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 rounded-md"
+        className="w-full h-full object-cover"
         loading="lazy"
       />
 
-      {/* gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      {/* gradient — sempre visível na parte inferior para legibilidade */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
 
-      {/* info on hover */}
-      <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-        <p className="text-white font-semibold text-sm line-clamp-1">
+      {/* info — sempre visível embaixo */}
+      <div className="absolute bottom-0 left-0 right-0 p-2.5">
+        <p className="text-white font-semibold text-xs leading-tight line-clamp-2 drop-shadow-lg">
           {getTitle(content)}
         </p>
-        <div className="flex items-center gap-2 mt-1">
-          <span className="flex items-center gap-1 text-yellow-400 text-xs">
-            <Star className="w-3 h-3 fill-yellow-400" />
+        <div className="flex items-center gap-1.5 mt-1">
+          <span className="flex items-center gap-0.5 text-yellow-400 text-[10px] font-bold">
+            <Star className="w-2.5 h-2.5 fill-yellow-400" />
             {content.vote_average.toFixed(1)}
           </span>
-          <span className="text-white/60 text-xs">{getReleaseYear(content)}</span>
+          <span className="text-white/50 text-[10px]">{getReleaseYear(content)}</span>
         </div>
       </div>
 
-      {/* play icon */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-        <div className="bg-white/20 backdrop-blur-sm rounded-full p-2.5">
+      {/* play icon on hover */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/30">
+        <div className="bg-white/25 backdrop-blur-sm rounded-full p-3">
           <Play className="w-5 h-5 text-white fill-white" />
         </div>
       </div>
@@ -151,7 +152,7 @@ function ContentRow({ title, items, onSelect, wide = false, loading = false }: C
         {/* Scrollable list */}
         <div
           ref={rowRef}
-          className="flex gap-2 md:gap-3 overflow-x-auto scrollbar-hide px-4 md:px-12 pb-2"
+          className="flex gap-2 md:gap-3 overflow-x-auto overflow-y-visible scrollbar-hide px-4 md:px-12 py-3"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           {loading
