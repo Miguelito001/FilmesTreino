@@ -68,8 +68,8 @@ function ContentCard({ content, onSelect, wide = false }: ContentCardProps) {
     <button
       onClick={() => onSelect(content)}
       className={cn(
-        "group relative flex-shrink-0 cursor-pointer rounded-md overflow-hidden transition-all duration-300",
-        "hover:scale-105 hover:z-10 hover:shadow-2xl hover:shadow-black/70",
+        "group relative flex-shrink-0 cursor-pointer rounded-md overflow-visible transition-all duration-300",
+        "hover:z-20",
         wide ? "w-64 h-36" : "w-40 h-60 md:w-44 md:h-64"
       )}
     >
@@ -80,7 +80,7 @@ function ContentCard({ content, onSelect, wide = false }: ContentCardProps) {
             : getPosterUrl(content.poster_path, "w500")
         }
         alt={getTitle(content)}
-        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 rounded-md"
         loading="lazy"
       />
 
@@ -133,12 +133,12 @@ function ContentRow({ title, items, onSelect, wide = false, loading = false }: C
   };
 
   return (
-    <section className="relative group/row">
-      <h2 className="text-white font-semibold text-lg md:text-xl px-4 md:px-12 mb-3 tracking-wide">
+    <section className="relative group/row mt-8">
+      <h2 className="text-white font-semibold text-lg md:text-xl px-4 md:px-12 mb-4 tracking-wide">
         {title}
       </h2>
 
-      <div className="relative">
+      <div className="relative z-0">
         {/* Left arrow */}
         <button
           onClick={() => scroll("left")}
