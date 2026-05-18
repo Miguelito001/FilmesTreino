@@ -151,8 +151,15 @@ export async function getContentDetails(
       { next: { revalidate: 3600 } }
     );
 
-    const videosResponse = await fetch(
+    // Busca vídeos em PT-BR primeiro
+    const videosPtResponse = await fetch(
       `${BASE_URL}/${type}/${id}/videos?api_key=${API_KEY}&language=pt-BR`,
+      { next: { revalidate: 3600 } }
+    );
+
+    // Busca vídeos em EN-US como fallback (maioria dos trailers)
+    const videosEnResponse = await fetch(
+      `${BASE_URL}/${type}/${id}/videos?api_key=${API_KEY}&language=en-US`,
       { next: { revalidate: 3600 } }
     );
 
@@ -161,20 +168,27 @@ export async function getContentDetails(
       { next: { revalidate: 3600 } }
     );
 
-    if (!contentResponse.ok || !videosResponse.ok || !creditsResponse.ok) {
+    if (!contentResponse.ok || !creditsResponse.ok) {
       throw new Error("Erro ao buscar detalhes");
     }
 
     const contentData = await contentResponse.json();
-    const videosData = await videosResponse.json();
+    const videosPtData = videosPtResponse.ok ? await videosPtResponse.json() : { results: [] };
+    const videosEnData = videosEnResponse.ok ? await videosEnResponse.json() : { results: [] };
     const creditsData = await creditsResponse.json();
+
+    // Combina vídeos PT-BR + EN-US (prioriza PT-BR)
+    const allVideos = [
+      ...(videosPtData.results || []),
+      ...(videosEnData.results || []),
+    ];
 
     return {
       content: {
         ...contentData,
         media_type: type,
       },
-      videos: videosData.results || [],
+      videos: allVideos,
       credits: creditsData,
     };
   } catch (error) {
@@ -294,25 +308,27 @@ export function getBackdropUrl(
 }
 
 export function getTrailerUrl(videos: TMDBVideoResult[]): string | null {
-  // Procura por trailers em português
-  const ptTrailer = videos.find(
-    (v) =>
-      v.site === "YouTube" &&
-      (v.type === "Trailer" || v.type === "Teaser") &&
-      v.key
-  );
-
-  if (ptTrailer) {
-    return `https://www.youtube.com/embed/${ptTrailer.key}`;
+  if (!videos || videos.length === 0) {
+    return null;
   }
 
-  // Se não encontrar em português, procura em qualquer idioma
-  const anyTrailer = videos.find(
-    (v) =>
-      v.site === "YouTube" &&
-      (v.type === "Trailer" || v.type === "Teaser") &&
-      v.key
+  // Filtra apenas vídeos do YouTube com key válida
+  const youtubeVideos = videos.filter(
+    (v) => v.site === "YouTube" && v.key && v.key.length > 0
   );
 
-  return anyTrailer ? `https://www.youtube.com/embed/${anyTrailer.key}` : null;
+  if (youtubeVideos.length === 0) {
+    return null;
+  }
+
+  // Prioridade: Trailer oficial > Teaser > Qualquer outro
+  const trailer = youtubeVideos.find((v) => v.type === "Trailer") ||
+                  youtubeVideos.find((v) => v.type === "Teaser") ||
+                  youtubeVideos[0];
+
+  if (trailer) {
+    return `https://www.youtube.com/embed/${trailer.key}`;
+  }
+
+  return null;
 }
