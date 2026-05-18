@@ -11,7 +11,6 @@ import {
   Film,
   Tv,
   X,
-  Calendar,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +36,6 @@ import {
   isMovie,
   type TMDBContent,
 } from "@/lib/tmdb";
-import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -276,6 +274,67 @@ function HeroBanner({ content, onPlay, onInfo, loading }: HeroBannerProps) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  TrailerModal — ocupa quase toda a tela                             */
+/* ------------------------------------------------------------------ */
+
+interface TrailerModalProps {
+  videoUrl: string | null;
+  title: string;
+  onClose: () => void;
+}
+
+function TrailerModal({ videoUrl, title, onClose }: TrailerModalProps) {
+  // Fechar com Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  if (!videoUrl) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-[95vw] max-w-7xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Botão fechar */}
+        <button
+          onClick={onClose}
+          aria-label="Fechar trailer"
+          className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors flex items-center gap-2 text-sm font-semibold"
+        >
+          <X className="w-5 h-5" />
+          Fechar
+        </button>
+
+        {/* Player */}
+        <div className="w-full aspect-video rounded-xl overflow-hidden shadow-2xl shadow-black ring-1 ring-white/10">
+          <iframe
+            width="100%"
+            height="100%"
+            src={videoUrl}
+            title={`Trailer — ${title}`}
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            className="w-full h-full"
+          />
+        </div>
+
+        <p className="mt-3 text-center text-white/50 text-sm truncate">{title}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  DetailModal                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -284,22 +343,27 @@ interface DetailModalProps {
   details: any;
   genres: Record<string, string>;
   onClose: () => void;
+  onPlayTrailer: (url: string, title: string) => void;
 }
 
-function DetailModal({ content, details, genres, onClose }: DetailModalProps) {
+function DetailModal({ content, details, genres, onClose, onPlayTrailer }: DetailModalProps) {
+  const trailerUrl = details?.videos ? getTrailerUrl(details.videos) : null;
+
   return (
     <Dialog open={!!content} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[#181818] border-white/10 p-0">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-[#181818] border-white/10 p-0">
         {content && details && (
           <>
-            {/* Top section with video/backdrop */}
-            <div className="relative">
-              <YouTubePlayer
-                videoUrl={details.videos ? getTrailerUrl(details.videos) : null}
-                title={getTitle(content)}
+            {/* Backdrop com botão de play central */}
+            <div className="relative aspect-video overflow-hidden">
+              <img
+                src={getBackdropUrl(content.backdrop_path, "w1280")}
+                alt={getTitle(content)}
+                className="w-full h-full object-cover"
               />
-              {/* Gradient over video bottom */}
-              <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#181818] to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-black/30 to-transparent" />
+
+              {/* Botão fechar */}
               <button
                 onClick={onClose}
                 className="absolute top-3 right-3 bg-black/70 rounded-full p-1.5 text-white hover:bg-black transition-colors z-10"
@@ -307,14 +371,39 @@ function DetailModal({ content, details, genres, onClose }: DetailModalProps) {
               >
                 <X className="w-5 h-5" />
               </button>
+
+              {/* Play central — abre o TrailerModal */}
+              {trailerUrl && (
+                <button
+                  onClick={() => onPlayTrailer(trailerUrl, getTitle(content))}
+                  aria-label="Assistir trailer"
+                  className="absolute inset-0 flex items-center justify-center group/play"
+                >
+                  <div className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-full p-5 group-hover/play:bg-white/30 group-hover/play:scale-110 transition-all duration-200">
+                    <Play className="w-10 h-10 text-white fill-white" />
+                  </div>
+                </button>
+              )}
             </div>
 
-            <div className="px-8 pb-8 -mt-8 relative">
-              <DialogHeader className="mb-4">
+            <div className="px-8 pb-8 pt-4 relative">
+              <DialogHeader className="mb-1">
                 <DialogTitle className="text-2xl md:text-3xl font-black text-white">
                   {getTitle(content)}
                 </DialogTitle>
               </DialogHeader>
+
+              {/* Botão assistir trailer — linha de ação */}
+              {trailerUrl && (
+                <Button
+                  onClick={() => onPlayTrailer(trailerUrl, getTitle(content))}
+                  size="sm"
+                  className="mb-5 bg-white text-black font-bold hover:bg-white/90 gap-2 rounded-md"
+                >
+                  <Play className="w-4 h-4 fill-black" />
+                  Assistir trailer
+                </Button>
+              )}
 
               {/* Meta info row */}
               <div className="flex flex-wrap items-center gap-3 mb-5 text-sm">
@@ -474,6 +563,9 @@ export default function StreamingHome() {
   const [selectedDetails, setSelectedDetails] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
+  const [trailerTitle, setTrailerTitle] = useState("");
+
   const [headerScrolled, setHeaderScrolled] = useState(false);
 
   // Scroll detection for header style
@@ -562,6 +654,16 @@ export default function StreamingHome() {
     setDetailLoading(false);
   }, []);
 
+  const handleOpenTrailer = useCallback((url: string, title: string) => {
+    setTrailerUrl(url);
+    setTrailerTitle(title);
+  }, []);
+
+  const handleCloseTrailer = useCallback(() => {
+    setTrailerUrl(null);
+    setTrailerTitle("");
+  }, []);
+
   const isSearching = searchQuery.trim().length > 0;
 
   return (
@@ -620,7 +722,16 @@ export default function StreamingHome() {
         <HeroBanner
           content={hero}
           loading={loading}
-          onPlay={handleSelectContent}
+          onPlay={async (content) => {
+            // Busca detalhes para obter o trailer e abre direto
+            const details = await getContentDetails(content.id, isMovie(content) ? "movie" : "tv");
+            const url = details?.videos ? getTrailerUrl(details.videos) : null;
+            if (url) {
+              handleOpenTrailer(url, isMovie(content) ? (content as any).title : (content as any).name);
+            } else {
+              handleSelectContent(content);
+            }
+          }}
           onInfo={handleSelectContent}
         />
       )}
@@ -677,7 +788,17 @@ export default function StreamingHome() {
           setSelectedContent(null);
           setSelectedDetails(null);
         }}
+        onPlayTrailer={handleOpenTrailer}
       />
+
+      {/* ── Trailer Modal — tela cheia ── */}
+      {trailerUrl && (
+        <TrailerModal
+          videoUrl={trailerUrl}
+          title={trailerTitle}
+          onClose={handleCloseTrailer}
+        />
+      )}
     </div>
   );
 }
