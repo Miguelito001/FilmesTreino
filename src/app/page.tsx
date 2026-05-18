@@ -273,69 +273,10 @@ function HeroBanner({ content, onPlay, onInfo, loading }: HeroBannerProps) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  TrailerModal — ocupa quase toda a tela                             */
-/* ------------------------------------------------------------------ */
 
-interface TrailerModalProps {
-  videoUrl: string | null;
-  title: string;
-  onClose: () => void;
-}
-
-function TrailerModal({ videoUrl, title, onClose }: TrailerModalProps) {
-  // Fechar com Escape
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  if (!videoUrl) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-[95vw] max-w-7xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Botão fechar */}
-        <button
-          onClick={onClose}
-          aria-label="Fechar trailer"
-          className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors flex items-center gap-2 text-sm font-semibold"
-        >
-          <X className="w-5 h-5" />
-          Fechar
-        </button>
-
-        {/* Player */}
-        <div className="w-full aspect-video rounded-xl overflow-hidden shadow-2xl shadow-black ring-1 ring-white/10">
-          <iframe
-            width="100%"
-            height="100%"
-            src={videoUrl}
-            title={`Trailer — ${title}`}
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            className="w-full h-full"
-          />
-        </div>
-
-        <p className="mt-3 text-center text-white/50 text-sm truncate">{title}</p>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
-/*  DetailModal                                                         */
+/*  DetailModal — trailer inline + info lado a lado                    */
 /* ------------------------------------------------------------------ */
 
 interface DetailModalProps {
@@ -343,159 +284,166 @@ interface DetailModalProps {
   details: any;
   genres: Record<string, string>;
   onClose: () => void;
-  onPlayTrailer: (url: string, title: string) => void;
 }
 
-function DetailModal({ content, details, genres, onClose, onPlayTrailer }: DetailModalProps) {
+function DetailModal({ content, details, genres, onClose }: DetailModalProps) {
   const trailerUrl = details?.videos ? getTrailerUrl(details.videos) : null;
 
   return (
     <Dialog open={!!content} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-[#181818] border-white/10 p-0">
-        {content && details && (
+      {/*
+        w-[95vw] max-w-6xl: ocupa 95% da largura, no máximo 1152px
+        max-h-[92vh] overflow-y-auto: scroll vertical se necessário (tela pequena)
+        Sem overflow horizontal — layout flex-col → flex-row conforme espaço
+      */}
+      <DialogContent
+        showCloseButton={false}
+        className="w-[95vw] !max-w-6xl max-h-[92vh] overflow-y-auto bg-[#181818] border-white/10 p-0 gap-0"
+      >
+        {content && (
           <>
-            {/* Backdrop com botão de play central */}
-            <div className="relative aspect-video overflow-hidden">
-              <img
-                src={getBackdropUrl(content.backdrop_path, "w1280")}
-                alt={getTitle(content)}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-black/30 to-transparent" />
-
-              {/* Botão fechar */}
+            {/* Cabeçalho com título e botão fechar */}
+            <div className="flex items-start justify-between px-6 pt-5 pb-0">
+              <DialogHeader>
+                <DialogTitle className="text-2xl md:text-3xl font-black text-white leading-tight text-balance pr-8">
+                  {getTitle(content)}
+                </DialogTitle>
+              </DialogHeader>
               <button
                 onClick={onClose}
-                className="absolute top-3 right-3 bg-black/70 rounded-full p-1.5 text-white hover:bg-black transition-colors z-10"
+                className="flex-shrink-0 bg-white/10 hover:bg-white/20 rounded-full p-1.5 text-white transition-colors mt-0.5"
                 aria-label="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
-
-              {/* Play central — abre o TrailerModal */}
-              {trailerUrl && (
-                <button
-                  onClick={() => onPlayTrailer(trailerUrl, getTitle(content))}
-                  aria-label="Assistir trailer"
-                  className="absolute inset-0 flex items-center justify-center group/play"
-                >
-                  <div className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-full p-5 group-hover/play:bg-white/30 group-hover/play:scale-110 transition-all duration-200">
-                    <Play className="w-10 h-10 text-white fill-white" />
-                  </div>
-                </button>
-              )}
             </div>
 
-            <div className="px-8 pb-8 pt-4 relative">
-              <DialogHeader className="mb-1">
-                <DialogTitle className="text-2xl md:text-3xl font-black text-white">
-                  {getTitle(content)}
-                </DialogTitle>
-              </DialogHeader>
+            {/* Corpo: player à esquerda + info à direita */}
+            <div className="flex flex-col lg:flex-row gap-0 p-6 pt-4">
 
-              {/* Botão assistir trailer — linha de ação */}
-              {trailerUrl && (
-                <Button
-                  onClick={() => onPlayTrailer(trailerUrl, getTitle(content))}
-                  size="sm"
-                  className="mb-5 bg-white text-black font-bold hover:bg-white/90 gap-2 rounded-md"
-                >
-                  <Play className="w-4 h-4 fill-black" />
-                  Assistir trailer
-                </Button>
-              )}
-
-              {/* Meta info row */}
-              <div className="flex flex-wrap items-center gap-3 mb-5 text-sm">
-                <span className="flex items-center gap-1 text-yellow-400 font-semibold">
-                  <Star className="w-4 h-4 fill-yellow-400" />
-                  {content.vote_average.toFixed(1)}/10
-                </span>
-                <span className="text-white/40">•</span>
-                <span className="text-white/70">{getReleaseYear(content)}</span>
-                <span className="text-white/40">•</span>
-                <span className="flex items-center gap-1.5 text-white/70">
-                  {isMovie(content) ? <Film className="w-4 h-4" /> : <Tv className="w-4 h-4" />}
-                  {isMovie(content) ? "Filme" : "Série"}
-                </span>
-                <span className="text-white/40">•</span>
-                <span className="text-white/60">
-                  {(content.vote_count / 1000).toFixed(1)}k votos
-                </span>
+              {/* ── Coluna esquerda: trailer ou backdrop ── */}
+              <div className="lg:w-[60%] flex-shrink-0">
+                {trailerUrl ? (
+                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src={`${trailerUrl}&autoplay=1&mute=0`}
+                      title={`Trailer — ${getTitle(content)}`}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      className="w-full h-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black">
+                    <img
+                      src={getBackdropUrl(content.backdrop_path, "w1280")}
+                      alt={getTitle(content)}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
               </div>
 
-              {/* Genres */}
-              {content.genre_ids && content.genre_ids.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-5">
-                  {content.genre_ids.map((id) => (
-                    <Badge
-                      key={id}
-                      className="bg-white/10 text-white/80 border-white/20 hover:bg-white/20"
-                      variant="outline"
-                    >
-                      {genres[String(id)] || "Outro"}
-                    </Badge>
-                  ))}
+              {/* ── Coluna direita: informações ── */}
+              <div className="lg:w-[40%] lg:pl-6 mt-5 lg:mt-0 flex flex-col gap-4 overflow-y-auto lg:max-h-[calc(92vh-120px)]">
+
+                {/* Meta */}
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="flex items-center gap-1 text-yellow-400 font-semibold">
+                    <Star className="w-4 h-4 fill-yellow-400" />
+                    {content.vote_average.toFixed(1)}/10
+                  </span>
+                  <span className="text-white/30">·</span>
+                  <span className="text-white/70">{getReleaseYear(content)}</span>
+                  <span className="text-white/30">·</span>
+                  <span className="flex items-center gap-1 text-white/70">
+                    {isMovie(content) ? <Film className="w-4 h-4" /> : <Tv className="w-4 h-4" />}
+                    {isMovie(content) ? "Filme" : "Série"}
+                  </span>
+                  <span className="text-white/30">·</span>
+                  <span className="text-white/50">
+                    {(content.vote_count / 1000).toFixed(1)}k votos
+                  </span>
                 </div>
-              )}
 
-              {/* Overview */}
-              <p className="text-white/80 leading-relaxed text-sm md:text-base mb-8">
-                {content.overview || "Sinopse não disponível."}
-              </p>
-
-              {/* Cast */}
-              {details.credits?.cast?.length > 0 && (
-                <div className="mb-6">
-                  <p className="text-white/50 text-xs uppercase tracking-widest mb-3">
-                    Elenco
-                  </p>
-                  <ScrollArea>
-                    <div className="flex gap-3 pb-3">
-                      {details.credits.cast.slice(0, 12).map((actor: any) => (
-                        <div key={actor.id} className="flex-shrink-0 w-20 text-center">
-                          {actor.profile_path ? (
-                            <img
-                              src={`https://image.tmdb.org/t/p/w200${actor.profile_path}`}
-                              alt={actor.name}
-                              className="w-20 h-28 object-cover rounded-md mb-1.5"
-                            />
-                          ) : (
-                            <div className="w-20 h-28 rounded-md bg-white/10 flex items-center justify-center mb-1.5">
-                              <Film className="w-6 h-6 text-white/30" />
-                            </div>
-                          )}
-                          <p className="text-white text-xs font-semibold truncate">{actor.name}</p>
-                          <p className="text-white/50 text-xs truncate">{actor.character}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <ScrollBar orientation="horizontal" />
-                  </ScrollArea>
-                </div>
-              )}
-
-              {/* Crew */}
-              {details.credits?.crew && (
-                <div>
-                  <p className="text-white/50 text-xs uppercase tracking-widest mb-3">
-                    Direção / Produção
-                  </p>
-                  <div className="flex flex-wrap gap-4">
-                    {details.credits.crew
-                      .filter((m: any) =>
-                        ["Director", "Producer", "Executive Producer"].includes(m.job)
-                      )
-                      .slice(0, 6)
-                      .map((member: any) => (
-                        <div key={`${member.id}-${member.job}`}>
-                          <p className="text-white font-semibold text-sm">{member.name}</p>
-                          <p className="text-white/50 text-xs">{member.job === "Director" ? "Diretor" : "Produtor"}</p>
-                        </div>
-                      ))}
+                {/* Gêneros */}
+                {content.genre_ids && content.genre_ids.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {content.genre_ids.map((id) => (
+                      <Badge
+                        key={id}
+                        variant="outline"
+                        className="bg-white/10 text-white/80 border-white/20"
+                      >
+                        {genres[String(id)] || "Outro"}
+                      </Badge>
+                    ))}
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Sinopse */}
+                <p className="text-white/75 leading-relaxed text-sm">
+                  {content.overview || "Sinopse não disponível."}
+                </p>
+
+                {/* Direção / Produção */}
+                {details?.credits?.crew && (
+                  <div>
+                    <p className="text-white/40 text-xs uppercase tracking-widest mb-2">
+                      Direção / Produção
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {details.credits.crew
+                        .filter((m: any) =>
+                          ["Director", "Producer", "Executive Producer"].includes(m.job)
+                        )
+                        .slice(0, 4)
+                        .map((member: any) => (
+                          <div key={`${member.id}-${member.job}`} className="flex items-center gap-2">
+                            <span className="text-white text-sm font-semibold">{member.name}</span>
+                            <span className="text-white/40 text-xs">
+                              {member.job === "Director" ? "Diretor" : "Produtor"}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Elenco */}
+                {details?.credits?.cast?.length > 0 && (
+                  <div>
+                    <p className="text-white/40 text-xs uppercase tracking-widest mb-3">
+                      Elenco
+                    </p>
+                    <ScrollArea>
+                      <div className="flex gap-3 pb-2">
+                        {details.credits.cast.slice(0, 10).map((actor: any) => (
+                          <div key={actor.id} className="flex-shrink-0 w-16 text-center">
+                            {actor.profile_path ? (
+                              <img
+                                src={`https://image.tmdb.org/t/p/w200${actor.profile_path}`}
+                                alt={actor.name}
+                                className="w-16 h-24 object-cover rounded-md mb-1"
+                              />
+                            ) : (
+                              <div className="w-16 h-24 rounded-md bg-white/10 flex items-center justify-center mb-1">
+                                <Film className="w-5 h-5 text-white/30" />
+                              </div>
+                            )}
+                            <p className="text-white text-xs font-semibold truncate">{actor.name}</p>
+                            <p className="text-white/40 text-xs truncate">{actor.character}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}
@@ -563,8 +511,7 @@ export default function StreamingHome() {
   const [selectedDetails, setSelectedDetails] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
-  const [trailerTitle, setTrailerTitle] = useState("");
+
 
   const [headerScrolled, setHeaderScrolled] = useState(false);
 
@@ -654,16 +601,6 @@ export default function StreamingHome() {
     setDetailLoading(false);
   }, []);
 
-  const handleOpenTrailer = useCallback((url: string, title: string) => {
-    setTrailerUrl(url);
-    setTrailerTitle(title);
-  }, []);
-
-  const handleCloseTrailer = useCallback(() => {
-    setTrailerUrl(null);
-    setTrailerTitle("");
-  }, []);
-
   const isSearching = searchQuery.trim().length > 0;
 
   return (
@@ -722,16 +659,7 @@ export default function StreamingHome() {
         <HeroBanner
           content={hero}
           loading={loading}
-          onPlay={async (content) => {
-            // Busca detalhes para obter o trailer e abre direto
-            const details = await getContentDetails(content.id, isMovie(content) ? "movie" : "tv");
-            const url = details?.videos ? getTrailerUrl(details.videos) : null;
-            if (url) {
-              handleOpenTrailer(url, isMovie(content) ? (content as any).title : (content as any).name);
-            } else {
-              handleSelectContent(content);
-            }
-          }}
+          onPlay={handleSelectContent}
           onInfo={handleSelectContent}
         />
       )}
@@ -788,17 +716,7 @@ export default function StreamingHome() {
           setSelectedContent(null);
           setSelectedDetails(null);
         }}
-        onPlayTrailer={handleOpenTrailer}
       />
-
-      {/* ── Trailer Modal — tela cheia ── */}
-      {trailerUrl && (
-        <TrailerModal
-          videoUrl={trailerUrl}
-          title={trailerTitle}
-          onClose={handleCloseTrailer}
-        />
-      )}
     </div>
   );
 }
