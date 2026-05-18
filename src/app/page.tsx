@@ -133,12 +133,12 @@ function ContentRow({ title, items, onSelect, wide = false, loading = false }: C
   };
 
   return (
-    <section className="relative group/row mt-8">
+    <section className="relative group/row mt-8 mb-8">
       <h2 className="text-white font-semibold text-lg md:text-xl px-4 md:px-12 mb-4 tracking-wide">
         {title}
       </h2>
 
-      <div className="relative z-0">
+      <div className="relative">
         {/* Left arrow */}
         <button
           onClick={() => scroll("left")}
