@@ -1,7 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { Search, Play, Star, Clock, Calendar, Film, Tv, X, Info } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Search,
+  Play,
+  Star,
+  Info,
+  ChevronLeft,
+  ChevronRight,
+  Film,
+  Tv,
+  X,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -12,650 +22,773 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { parseTitles, parseCredits, type Title, type Credit } from "@/lib/data";
+import {
+  searchContent,
+  getTrendingContent,
+  getPopularContent,
+  getTopRatedContent,
+  getContentDetails,
+  getGenres,
+  getPosterUrl,
+  getBackdropUrl,
+  getTrailerUrl,
+  isMovie,
+  type TMDBContent,
+} from "@/lib/tmdb";
+import { cn } from "@/lib/utils";
 
-const GENRE_COLORS: Record<string, string> = {
-  drama: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  action: "bg-red-500/20 text-red-300 border-red-500/30",
-  comedy: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-  thriller: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-  horror: "bg-green-500/20 text-green-300 border-green-500/30",
-  romance: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-  scifi: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-  fantasy: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-  crime: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  war: "bg-stone-500/20 text-stone-300 border-stone-500/30",
-  documentation: "bg-teal-500/20 text-teal-300 border-teal-500/30",
-  animation: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-  family: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  music: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30",
-  western: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-  history: "bg-lime-500/20 text-lime-300 border-lime-500/30",
-  european: "bg-sky-500/20 text-sky-300 border-sky-500/30",
-};
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                             */
+/* ------------------------------------------------------------------ */
 
-function getGenreColor(genre: string): string {
-  return GENRE_COLORS[genre.toLowerCase()] || "bg-muted text-muted-foreground border-border";
+function getTitle(content: TMDBContent) {
+  return isMovie(content) ? content.title : content.name;
 }
 
-export default function StreamingHomePage() {
-  const [titles, setTitles] = useState<Title[]>([]);
-  const [credits, setCredits] = useState<Credit[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedType, setSelectedType] = useState<"ALL" | "MOVIE" | "SHOW">("ALL");
-  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-  const [selectedTitle, setSelectedTitle] = useState<Title | null>(null);
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [titlesRes, creditsRes] = await Promise.all([
-          fetch("/data/titles.csv"),
-          fetch("/data/credits.csv"),
-        ]);
-
-        const titlesText = await titlesRes.text();
-        const creditsText = await creditsRes.text();
-
-        setTitles(parseTitles(titlesText));
-        setCredits(parseCredits(creditsText));
-      } catch (error) {
-        console.error("Error loading data:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadData();
-  }, []);
-
-  const allGenres = useMemo(() => {
-    const genres = new Set<string>();
-    titles.forEach((t) => t.genres.forEach((g) => genres.add(g)));
-    return Array.from(genres).sort();
-  }, [titles]);
-
-  const filteredTitles = useMemo(() => {
-    return titles.filter((title) => {
-      const matchesSearch =
-        !searchQuery ||
-        title.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        title.description.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesType = selectedType === "ALL" || title.type === selectedType;
-
-      const matchesGenre =
-        !selectedGenre || title.genres.some((g) => g.toLowerCase() === selectedGenre.toLowerCase());
-
-      return matchesSearch && matchesType && matchesGenre;
-    });
-  }, [titles, searchQuery, selectedType, selectedGenre]);
-
-  const featuredTitle = useMemo(() => {
-    const topRated = filteredTitles
-      .filter((t) => t.imdb_score && t.imdb_score > 7)
-      .sort((a, b) => (b.imdb_score || 0) - (a.imdb_score || 0));
-    return topRated[0] || filteredTitles[0];
-  }, [filteredTitles]);
-
-  const titlesByGenre = useMemo(() => {
-    const byGenre: Record<string, Title[]> = {};
-    const genres = ["drama", "action", "comedy", "thriller", "crime", "scifi", "horror", "documentation"];
-
-    genres.forEach((genre) => {
-      byGenre[genre] = filteredTitles
-        .filter((t) => t.genres.some((g) => g.toLowerCase() === genre))
-        .sort((a, b) => (b.imdb_score || 0) - (a.imdb_score || 0))
-        .slice(0, 20);
-    });
-
-    return byGenre;
-  }, [filteredTitles]);
-
-  const topRated = useMemo(() => {
-    return filteredTitles
-      .filter((t) => t.imdb_score)
-      .sort((a, b) => (b.imdb_score || 0) - (a.imdb_score || 0))
-      .slice(0, 20);
-  }, [filteredTitles]);
-
-  const recentlyAdded = useMemo(() => {
-    return filteredTitles
-      .filter((t) => t.release_year >= 2000)
-      .sort((a, b) => b.release_year - a.release_year)
-      .slice(0, 20);
-  }, [filteredTitles]);
-
-  const getTitleCredits = useCallback(
-    (titleId: string) => {
-      return credits.filter((c) => c.id === titleId);
-    },
-    [credits]
-  );
-
-  const clearFilters = () => {
-    setSearchQuery("");
-    setSelectedType("ALL");
-    setSelectedGenre(null);
-  };
-
-  const hasActiveFilters = searchQuery || selectedType !== "ALL" || selectedGenre;
-
-  if (loading) {
-    return <LoadingSkeleton />;
-  }
-
-  return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-background via-background/95 to-transparent">
-        <div className="flex items-center justify-between px-4 py-4 md:px-8 lg:px-12">
-          <div className="flex items-center gap-8">
-            <h1 className="text-2xl font-bold text-primary md:text-3xl">StreamFlix</h1>
-            <nav className="hidden items-center gap-6 md:flex">
-              <button
-                onClick={() => setSelectedType("ALL")}
-                className={`text-sm font-medium transition-colors hover:text-foreground ${
-                  selectedType === "ALL" ? "text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                Inicio
-              </button>
-              <button
-                onClick={() => setSelectedType("MOVIE")}
-                className={`text-sm font-medium transition-colors hover:text-foreground ${
-                  selectedType === "MOVIE" ? "text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                Filmes
-              </button>
-              <button
-                onClick={() => setSelectedType("SHOW")}
-                className={`text-sm font-medium transition-colors hover:text-foreground ${
-                  selectedType === "SHOW" ? "text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                Series
-              </button>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div
-              className={`relative transition-all duration-300 ${
-                isSearchFocused ? "w-64 md:w-80" : "w-40 md:w-64"
-              }`}
-            >
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Buscar..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                className="border-border bg-secondary/50 pl-9 text-sm backdrop-blur-sm placeholder:text-muted-foreground focus:bg-secondary"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="size-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Genre Filter */}
-        <div className="px-4 pb-4 md:px-8 lg:px-12">
-          <ScrollArea className="w-full whitespace-nowrap">
-            <div className="flex items-center gap-2">
-              {hasActiveFilters && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearFilters}
-                  className="shrink-0 border-primary/50 text-primary hover:bg-primary/10"
-                >
-                  Limpar filtros
-                </Button>
-              )}
-              {allGenres.slice(0, 12).map((genre) => (
-                <button
-                  key={genre}
-                  onClick={() => setSelectedGenre(selectedGenre === genre ? null : genre)}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium capitalize transition-all ${
-                    selectedGenre === genre
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-secondary/50 text-muted-foreground hover:border-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {genre}
-                </button>
-              ))}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="pt-32">
-        {/* Hero Section */}
-        {featuredTitle && !searchQuery && (
-          <HeroSection
-            title={featuredTitle}
-            credits={getTitleCredits(featuredTitle.id)}
-            onSelect={() => setSelectedTitle(featuredTitle)}
-          />
-        )}
-
-        {/* Search Results */}
-        {searchQuery && (
-          <section className="px-4 py-8 md:px-8 lg:px-12">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">
-              Resultados para &quot;{searchQuery}&quot;{" "}
-              <span className="text-muted-foreground">({filteredTitles.length})</span>
-            </h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {filteredTitles.slice(0, 30).map((title) => (
-                <TitleCard key={title.id} title={title} onClick={() => setSelectedTitle(title)} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Content Rows */}
-        {!searchQuery && (
-          <div className="space-y-8 pb-12">
-            <ContentRow
-              title="Mais Bem Avaliados"
-              titles={topRated}
-              onSelect={setSelectedTitle}
-            />
-            <ContentRow
-              title="Adicionados Recentemente"
-              titles={recentlyAdded}
-              onSelect={setSelectedTitle}
-            />
-            {Object.entries(titlesByGenre).map(
-              ([genre, genreTitles]) =>
-                genreTitles.length > 0 && (
-                  <ContentRow
-                    key={genre}
-                    title={genre.charAt(0).toUpperCase() + genre.slice(1)}
-                    titles={genreTitles}
-                    onSelect={setSelectedTitle}
-                  />
-                )
-            )}
-          </div>
-        )}
-      </main>
-
-      {/* Detail Modal */}
-      <TitleDetailModal
-        title={selectedTitle}
-        credits={selectedTitle ? getTitleCredits(selectedTitle.id) : []}
-        onClose={() => setSelectedTitle(null)}
-      />
-    </div>
-  );
+function getReleaseYear(content: TMDBContent) {
+  const date = isMovie(content)
+    ? content.release_date
+    : content.first_air_date;
+  return date ? new Date(date).getFullYear() : "—";
 }
 
-function HeroSection({
-  title,
-  credits,
-  onSelect,
-}: {
-  title: Title;
-  credits: Credit[];
-  onSelect: () => void;
-}) {
-  const directors = credits.filter((c) => c.role === "DIRECTOR").slice(0, 2);
-  const actors = credits.filter((c) => c.role === "ACTOR").slice(0, 3);
+/* ------------------------------------------------------------------ */
+/*  ContentCard                                                         */
+/* ------------------------------------------------------------------ */
 
-  return (
-    <section className="relative h-[70vh] min-h-[500px] w-full">
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/20" />
-      <div className="absolute inset-0 bg-gradient-to-r from-background via-background/40 to-transparent" />
-
-      {/* Content */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8 lg:p-12">
-        <div className="max-w-2xl space-y-4">
-          <div className="flex items-center gap-2">
-            {title.type === "MOVIE" ? (
-              <Film className="size-5 text-primary" />
-            ) : (
-              <Tv className="size-5 text-primary" />
-            )}
-            <span className="text-sm font-medium text-muted-foreground">
-              {title.type === "MOVIE" ? "Filme" : "Serie"}
-            </span>
-            {title.age_certification && (
-              <Badge variant="outline" className="border-border text-xs">
-                {title.age_certification}
-              </Badge>
-            )}
-          </div>
-
-          <h2 className="text-balance text-3xl font-bold md:text-5xl lg:text-6xl">{title.title}</h2>
-
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            {title.imdb_score && (
-              <span className="flex items-center gap-1 text-yellow-400">
-                <Star className="size-4 fill-current" />
-                {title.imdb_score.toFixed(1)}
-              </span>
-            )}
-            <span className="flex items-center gap-1">
-              <Calendar className="size-4" />
-              {title.release_year}
-            </span>
-            {title.runtime > 0 && (
-              <span className="flex items-center gap-1">
-                <Clock className="size-4" />
-                {title.runtime} min
-              </span>
-            )}
-            {title.seasons && <span>{title.seasons} temporadas</span>}
-          </div>
-
-          <p className="line-clamp-3 text-pretty text-sm text-muted-foreground md:text-base">
-            {title.description}
-          </p>
-
-          <div className="flex flex-wrap gap-2">
-            {title.genres.slice(0, 4).map((genre) => (
-              <Badge key={genre} variant="outline" className={`border ${getGenreColor(genre)}`}>
-                {genre}
-              </Badge>
-            ))}
-          </div>
-
-          {(directors.length > 0 || actors.length > 0) && (
-            <div className="space-y-1 text-sm">
-              {directors.length > 0 && (
-                <p className="text-muted-foreground">
-                  <span className="text-foreground">Diretor:</span>{" "}
-                  {directors.map((d) => d.name).join(", ")}
-                </p>
-              )}
-              {actors.length > 0 && (
-                <p className="text-muted-foreground">
-                  <span className="text-foreground">Elenco:</span>{" "}
-                  {actors.map((a) => a.name).join(", ")}
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3 pt-2">
-            <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-              <Play className="size-5 fill-current" />
-              Assistir
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={onSelect}>
-              <Info className="size-5" />
-              Mais Informacoes
-            </Button>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
+interface ContentCardProps {
+  content: TMDBContent;
+  onSelect: (content: TMDBContent) => void;
+  wide?: boolean;
 }
 
-function ContentRow({
-  title,
-  titles,
-  onSelect,
-}: {
-  title: string;
-  titles: Title[];
-  onSelect: (title: Title) => void;
-}) {
-  if (titles.length === 0) return null;
-
-  return (
-    <section className="px-4 md:px-8 lg:px-12">
-      <h2 className="mb-3 text-lg font-semibold md:text-xl">{title}</h2>
-      <ScrollArea className="w-full">
-        <div className="flex gap-3 pb-4">
-          {titles.map((t) => (
-            <TitleCard key={t.id} title={t} onClick={() => onSelect(t)} />
-          ))}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </section>
-  );
-}
-
-function TitleCard({ title, onClick }: { title: Title; onClick: () => void }) {
-  const [isHovered, setIsHovered] = useState(false);
-
+function ContentCard({ content, onSelect, wide = false }: ContentCardProps) {
   return (
     <button
-      className="group relative w-36 shrink-0 overflow-hidden rounded-md bg-card transition-all duration-300 hover:z-10 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary md:w-44"
-      onClick={onClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onClick={() => onSelect(content)}
+      className={cn(
+        "group relative flex-shrink-0 cursor-pointer rounded-lg overflow-hidden",
+        "transition-transform duration-300 hover:scale-105 hover:z-20",
+        "ring-0 hover:ring-2 hover:ring-white/30",
+        wide ? "w-64 h-36" : "w-40 h-60 md:w-44 md:h-64"
+      )}
     >
-      <div className="aspect-[2/3] w-full bg-gradient-to-br from-secondary to-muted">
-        <div className="flex h-full flex-col items-center justify-center p-3 text-center">
-          {title.type === "MOVIE" ? (
-            <Film className="mb-2 size-8 text-muted-foreground" />
-          ) : (
-            <Tv className="mb-2 size-8 text-muted-foreground" />
-          )}
-          <span className="line-clamp-3 text-sm font-medium text-foreground">{title.title}</span>
-          <span className="mt-1 text-xs text-muted-foreground">{title.release_year}</span>
+      <img
+        src={
+          wide && content.backdrop_path
+            ? `https://image.tmdb.org/t/p/w500${content.backdrop_path}`
+            : getPosterUrl(content.poster_path, "w500")
+        }
+        alt={getTitle(content)}
+        className="w-full h-full object-cover"
+        loading="lazy"
+      />
+
+      {/* gradient — sempre visível na parte inferior para legibilidade */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+
+      {/* info — sempre visível embaixo */}
+      <div className="absolute bottom-0 left-0 right-0 p-2.5">
+        <p className="text-white font-semibold text-xs leading-tight line-clamp-2 drop-shadow-lg">
+          {getTitle(content)}
+        </p>
+        <div className="flex items-center gap-1.5 mt-1">
+          <span className="flex items-center gap-0.5 text-yellow-400 text-[10px] font-bold">
+            <Star className="w-2.5 h-2.5 fill-yellow-400" />
+            {content.vote_average.toFixed(1)}
+          </span>
+          <span className="text-white/50 text-[10px]">{getReleaseYear(content)}</span>
         </div>
       </div>
 
-      {/* Hover overlay */}
-      <div
-        className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-background via-background/90 to-transparent p-3 transition-opacity duration-200 ${
-          isHovered ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        <div className="space-y-1">
-          {title.imdb_score && (
-            <span className="flex items-center gap-1 text-xs text-yellow-400">
-              <Star className="size-3 fill-current" />
-              {title.imdb_score.toFixed(1)}
-            </span>
-          )}
-          <h3 className="line-clamp-2 text-sm font-semibold">{title.title}</h3>
-          <div className="flex flex-wrap gap-1">
-            {title.genres.slice(0, 2).map((genre) => (
-              <span key={genre} className="text-xs capitalize text-muted-foreground">
-                {genre}
-              </span>
-            ))}
-          </div>
+      {/* play icon on hover */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/30">
+        <div className="bg-white/25 backdrop-blur-sm rounded-full p-3">
+          <Play className="w-5 h-5 text-white fill-white" />
         </div>
       </div>
     </button>
   );
 }
 
-function TitleDetailModal({
-  title,
-  credits,
-  onClose,
-}: {
-  title: Title | null;
-  credits: Credit[];
-  onClose: () => void;
-}) {
-  if (!title) return null;
+/* ------------------------------------------------------------------ */
+/*  ContentRow                                                          */
+/* ------------------------------------------------------------------ */
 
-  const directors = credits.filter((c) => c.role === "DIRECTOR");
-  const actors = credits.filter((c) => c.role === "ACTOR").slice(0, 10);
+interface ContentRowProps {
+  title: string;
+  items: TMDBContent[];
+  onSelect: (content: TMDBContent) => void;
+  wide?: boolean;
+  loading?: boolean;
+}
+
+function ContentRow({ title, items, onSelect, wide = false, loading = false }: ContentRowProps) {
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (direction: "left" | "right") => {
+    if (!rowRef.current) return;
+    const amount = direction === "left" ? -600 : 600;
+    rowRef.current.scrollBy({ left: amount, behavior: "smooth" });
+  };
 
   return (
-    <Dialog open={!!title} onOpenChange={() => onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto border-border bg-card">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            {title.type === "MOVIE" ? (
-              <Film className="size-5 text-primary" />
-            ) : (
-              <Tv className="size-5 text-primary" />
-            )}
-            <span className="text-sm text-muted-foreground">
-              {title.type === "MOVIE" ? "Filme" : "Serie"}
-            </span>
-          </div>
-          <DialogTitle className="text-2xl">{title.title}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Detalhes sobre {title.title}
-          </DialogDescription>
-        </DialogHeader>
+    <section className="relative group/row mt-8 mb-8">
+      <h2 className="text-white font-semibold text-lg md:text-xl px-4 md:px-12 mb-4 tracking-wide">
+        {title}
+      </h2>
 
-        <div className="space-y-6">
-          {/* Stats */}
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            {title.imdb_score && (
-              <span className="flex items-center gap-1 text-yellow-400">
-                <Star className="size-4 fill-current" />
-                {title.imdb_score.toFixed(1)} IMDb
-                {title.imdb_votes && (
-                  <span className="text-muted-foreground">
-                    ({(title.imdb_votes / 1000).toFixed(0)}K votos)
-                  </span>
-                )}
-              </span>
-            )}
-            <span className="flex items-center gap-1 text-muted-foreground">
-              <Calendar className="size-4" />
-              {title.release_year}
-            </span>
-            {title.runtime > 0 && (
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Clock className="size-4" />
-                {title.runtime} min
-              </span>
-            )}
-            {title.seasons && (
-              <span className="text-muted-foreground">{title.seasons} temporadas</span>
-            )}
-            {title.age_certification && (
-              <Badge variant="outline" className="border-border">
-                {title.age_certification}
-              </Badge>
-            )}
-          </div>
+      <div className="relative">
+        {/* Left arrow */}
+        <button
+          onClick={() => scroll("left")}
+          aria-label="Rolar para esquerda"
+          className="absolute left-0 top-0 bottom-0 z-10 w-10 md:w-12 bg-gradient-to-r from-black/80 to-transparent flex items-center justify-start pl-1 opacity-0 group-hover/row:opacity-100 transition-opacity duration-200"
+        >
+          <ChevronLeft className="w-7 h-7 text-white" />
+        </button>
 
-          {/* Genres */}
-          <div className="flex flex-wrap gap-2">
-            {title.genres.map((genre) => (
-              <Badge key={genre} variant="outline" className={`border ${getGenreColor(genre)}`}>
-                {genre}
-              </Badge>
-            ))}
-          </div>
-
-          {/* Description */}
-          <p className="text-pretty text-muted-foreground">{title.description}</p>
-
-          {/* Credits */}
-          {directors.length > 0 && (
-            <div>
-              <h4 className="mb-2 font-semibold">Diretores</h4>
-              <div className="flex flex-wrap gap-2">
-                {directors.map((d, i) => (
-                  <Badge key={`${d.person_id}-${i}`} variant="secondary">
-                    {d.name}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {actors.length > 0 && (
-            <div>
-              <h4 className="mb-2 font-semibold">Elenco Principal</h4>
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                {actors.map((a, i) => (
-                  <div key={`${a.person_id}-${i}`} className="rounded-md bg-secondary/50 p-2">
-                    <p className="text-sm font-medium">{a.name}</p>
-                    {a.character && (
-                      <p className="text-xs text-muted-foreground">{a.character}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Countries */}
-          {title.production_countries.length > 0 && (
-            <div className="text-sm text-muted-foreground">
-              <span className="text-foreground">Paises de producao: </span>
-              {title.production_countries.join(", ")}
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-              <Play className="size-5 fill-current" />
-              Assistir Agora
-            </Button>
-          </div>
+        {/* Scrollable list */}
+        <div
+          ref={rowRef}
+          className="flex gap-2 md:gap-3 overflow-x-auto overflow-y-visible scrollbar-hide px-4 md:px-12 py-3"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
+          {loading
+            ? Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton
+                  key={i}
+                  className={cn(
+                    "flex-shrink-0 rounded-md bg-white/10",
+                    wide ? "w-64 h-36" : "w-40 h-60 md:w-44 md:h-64"
+                  )}
+                />
+              ))
+            : items.map((item) => (
+                <ContentCard
+                  key={item.id}
+                  content={item}
+                  onSelect={onSelect}
+                  wide={wide}
+                />
+              ))}
         </div>
+
+        {/* Right arrow */}
+        <button
+          onClick={() => scroll("right")}
+          aria-label="Rolar para direita"
+          className="absolute right-0 top-0 bottom-0 z-10 w-10 md:w-12 bg-gradient-to-l from-black/80 to-transparent flex items-center justify-end pr-1 opacity-0 group-hover/row:opacity-100 transition-opacity duration-200"
+        >
+          <ChevronRight className="w-7 h-7 text-white" />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  HeroBanner                                                          */
+/* ------------------------------------------------------------------ */
+
+interface HeroBannerProps {
+  content: TMDBContent | null;
+  onPlay: (content: TMDBContent) => void;
+  onInfo: (content: TMDBContent) => void;
+  loading: boolean;
+}
+
+function HeroBanner({ content, onPlay, onInfo, loading }: HeroBannerProps) {
+  if (loading) {
+    return (
+      <div className="relative w-full h-[70vh] bg-black">
+        <Skeleton className="w-full h-full bg-white/5" />
+      </div>
+    );
+  }
+
+  if (!content) return null;
+
+  return (
+    <div className="relative w-full h-[70vh] md:h-[80vh] overflow-hidden">
+      {/* Backdrop */}
+      <img
+        src={getBackdropUrl(content.backdrop_path, "w1280")}
+        alt={getTitle(content)}
+        className="absolute inset-0 w-full h-full object-cover"
+        priority-fetch="high"
+      />
+
+      {/* Gradients */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-transparent to-black/30" />
+
+      {/* Content */}
+      <div className="absolute bottom-16 md:bottom-24 left-4 md:left-12 max-w-xl">
+        {/* Type tag */}
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-400 uppercase tracking-widest mb-3">
+          {isMovie(content) ? <Film className="w-3.5 h-3.5" /> : <Tv className="w-3.5 h-3.5" />}
+          {isMovie(content) ? "Filme em destaque" : "Série em destaque"}
+        </span>
+
+        <h1 className="text-4xl md:text-6xl font-black text-white leading-none mb-4 text-balance drop-shadow-lg">
+          {getTitle(content)}
+        </h1>
+
+        {/* Meta */}
+        <div className="flex items-center gap-3 mb-5">
+          <span className="flex items-center gap-1 text-yellow-400 font-semibold text-sm">
+            <Star className="w-4 h-4 fill-yellow-400" />
+            {content.vote_average.toFixed(1)}
+          </span>
+          <span className="text-white/50 text-sm">•</span>
+          <span className="text-white/70 text-sm">{getReleaseYear(content)}</span>
+        </div>
+
+        <p className="text-white/80 text-sm md:text-base leading-relaxed line-clamp-3 mb-8 text-pretty">
+          {content.overview || "Sinopse não disponível."}
+        </p>
+
+        <div className="flex gap-3">
+          <Button
+            onClick={() => onPlay(content)}
+            size="lg"
+            className="bg-white text-black font-bold hover:bg-white/90 gap-2 rounded-md px-8"
+          >
+            <Play className="w-5 h-5 fill-black" />
+            Assistir trailer
+          </Button>
+          <Button
+            onClick={() => onInfo(content)}
+            size="lg"
+            variant="secondary"
+            className="bg-white/20 text-white font-semibold hover:bg-white/30 gap-2 rounded-md px-6 backdrop-blur-sm border border-white/10"
+          >
+            <Info className="w-5 h-5" />
+            Mais info
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+/* ------------------------------------------------------------------ */
+/*  DetailModal — trailer inline + info lado a lado                    */
+/* ------------------------------------------------------------------ */
+
+interface DetailModalProps {
+  content: TMDBContent | null;
+  details: any;
+  genres: Record<string, string>;
+  onClose: () => void;
+}
+
+function DetailModal({ content, details, genres, onClose }: DetailModalProps) {
+  const trailerUrl = details?.videos ? getTrailerUrl(details.videos) : null;
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Reset playing state when modal closes/opens
+  useEffect(() => {
+    if (!content) {
+      setIsPlaying(false);
+    }
+  }, [content]);
+
+  // Extrai a key do vídeo para a thumbnail
+  const videoKey = trailerUrl?.split("/embed/")[1]?.split("?")[0] || null;
+
+  return (
+    <Dialog open={!!content} onOpenChange={onClose}>
+      {/*
+        w-[95vw] max-w-6xl: ocupa 95% da largura, no máximo 1152px
+        max-h-[92vh] overflow-y-auto: scroll vertical se necessário (tela pequena)
+        Sem overflow horizontal — layout flex-col → flex-row conforme espaço
+      */}
+      <DialogContent
+        showCloseButton={false}
+        className="w-[95vw] !max-w-6xl max-h-[92vh] overflow-y-auto bg-[#181818] border-white/10 p-0 gap-0"
+      >
+        {content && (
+          <>
+            {/* Cabeçalho com título e botão fechar */}
+            <div className="flex items-start justify-between px-6 pt-5 pb-0">
+              <DialogHeader>
+                <DialogTitle className="text-2xl md:text-3xl font-black text-white leading-tight text-balance pr-8">
+                  {getTitle(content)}
+                </DialogTitle>
+              </DialogHeader>
+              <button
+                onClick={onClose}
+                className="flex-shrink-0 bg-white/10 hover:bg-white/20 rounded-full p-1.5 text-white transition-colors mt-0.5"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Corpo: player à esquerda + info à direita */}
+            <div className="flex flex-col lg:flex-row gap-0 p-6 pt-4">
+
+              {/* ── Coluna esquerda: trailer ou backdrop ── */}
+              <div className="lg:w-[60%] flex-shrink-0">
+                {trailerUrl && videoKey ? (
+                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black relative">
+                    {isPlaying ? (
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        src={`${trailerUrl}?rel=0&modestbranding=1`}
+                        title={`Trailer — ${getTitle(content)}`}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="w-full h-full"
+                      />
+                    ) : (
+                      <>
+                        {/* Thumbnail do YouTube */}
+                        <img
+                          src={`https://img.youtube.com/vi/${videoKey}/maxresdefault.jpg`}
+                          alt={`Trailer — ${getTitle(content)}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // Fallback para thumbnail de menor resolução
+                            (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${videoKey}/hqdefault.jpg`;
+                          }}
+                        />
+                        {/* Overlay com botão de play */}
+                        <button
+                          onClick={() => setIsPlaying(true)}
+                          className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/20 transition-colors group"
+                          aria-label="Reproduzir trailer"
+                        >
+                          <div className="bg-red-600 hover:bg-red-700 rounded-full p-4 transform group-hover:scale-110 transition-transform shadow-xl">
+                            <Play className="w-10 h-10 text-white fill-white" />
+                          </div>
+                        </button>
+                      </>
+                    )}
+                    {/* Link para abrir no YouTube — sempre visível */}
+                    <a
+                      href={`https://www.youtube.com/watch?v=${videoKey}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute bottom-3 right-3 bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 shadow-lg"
+                    >
+                      <Play className="w-3 h-3 fill-white" />
+                      Assistir no YouTube
+                    </a>
+                  </div>
+                ) : (
+                  <div className="w-full aspect-video rounded-xl overflow-hidden bg-black">
+                    <img
+                      src={getBackdropUrl(content.backdrop_path, "w1280")}
+                      alt={getTitle(content)}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ── Coluna direita: informações ── */}
+              <div className="lg:w-[40%] lg:pl-6 mt-5 lg:mt-0 flex flex-col gap-4 overflow-y-auto lg:max-h-[calc(92vh-120px)]">
+
+                {/* Meta */}
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="flex items-center gap-1 text-yellow-400 font-semibold">
+                    <Star className="w-4 h-4 fill-yellow-400" />
+                    {content.vote_average.toFixed(1)}/10
+                  </span>
+                  <span className="text-white/30">·</span>
+                  <span className="text-white/70">{getReleaseYear(content)}</span>
+                  <span className="text-white/30">·</span>
+                  <span className="flex items-center gap-1 text-white/70">
+                    {isMovie(content) ? <Film className="w-4 h-4" /> : <Tv className="w-4 h-4" />}
+                    {isMovie(content) ? "Filme" : "Série"}
+                  </span>
+                  <span className="text-white/30">·</span>
+                  <span className="text-white/50">
+                    {(content.vote_count / 1000).toFixed(1)}k votos
+                  </span>
+                </div>
+
+                {/* Gêneros */}
+                {content.genre_ids && content.genre_ids.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {content.genre_ids.map((id) => (
+                      <Badge
+                        key={id}
+                        variant="outline"
+                        className="bg-white/10 text-white/80 border-white/20"
+                      >
+                        {genres[String(id)] || "Outro"}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Sinopse */}
+                <p className="text-white/75 leading-relaxed text-sm">
+                  {content.overview || "Sinopse não disponível."}
+                </p>
+
+                {/* Direção / Produção */}
+                {details?.credits?.crew && (
+                  <div>
+                    <p className="text-white/40 text-xs uppercase tracking-widest mb-2">
+                      Direção / Produção
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {details.credits.crew
+                        .filter((m: any) =>
+                          ["Director", "Producer", "Executive Producer"].includes(m.job)
+                        )
+                        .slice(0, 4)
+                        .map((member: any) => (
+                          <div key={`${member.id}-${member.job}`} className="flex items-center gap-2">
+                            <span className="text-white text-sm font-semibold">{member.name}</span>
+                            <span className="text-white/40 text-xs">
+                              {member.job === "Director" ? "Diretor" : "Produtor"}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Elenco */}
+                {details?.credits?.cast?.length > 0 && (
+                  <div>
+                    <p className="text-white/40 text-xs uppercase tracking-widest mb-3">
+                      Elenco
+                    </p>
+                    <ScrollArea>
+                      <div className="flex gap-3 pb-2">
+                        {details.credits.cast.slice(0, 10).map((actor: any) => (
+                          <div key={actor.id} className="flex-shrink-0 w-16 text-center">
+                            {actor.profile_path ? (
+                              <img
+                                src={`https://image.tmdb.org/t/p/w200${actor.profile_path}`}
+                                alt={actor.name}
+                                className="w-16 h-24 object-cover rounded-md mb-1"
+                              />
+                            ) : (
+                              <div className="w-16 h-24 rounded-md bg-white/10 flex items-center justify-center mb-1">
+                                <Film className="w-5 h-5 text-white/30" />
+                              </div>
+                            )}
+                            <p className="text-white text-xs font-semibold truncate">{actor.name}</p>
+                            <p className="text-white/40 text-xs truncate">{actor.character}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function LoadingSkeleton() {
+/* ------------------------------------------------------------------ */
+/*  SearchResults grid                                                  */
+/* ------------------------------------------------------------------ */
+
+interface SearchResultsProps {
+  results: TMDBContent[];
+  query: string;
+  onSelect: (content: TMDBContent) => void;
+}
+
+function SearchResults({ results, query, onSelect }: SearchResultsProps) {
+  if (results.length === 0) {
+    return (
+      <div className="px-4 md:px-12 py-20 text-center">
+        <p className="text-white/50 text-lg">
+          Nenhum resultado para &quot;{query}&quot;
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen">
-      {/* Header skeleton */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background">
-        <div className="flex items-center justify-between px-4 py-4 md:px-8">
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-10 w-64" />
+    <div className="px-4 md:px-12 py-8">
+      <p className="text-white/60 text-sm mb-6">
+        {results.length} resultados para &quot;{query}&quot;
+      </p>
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 gap-2 md:gap-3">
+        {results.map((item) => (
+          <ContentCard key={item.id} content={item} onSelect={onSelect} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Page                                                                */
+/* ------------------------------------------------------------------ */
+
+interface CatalogRow {
+  title: string;
+  items: TMDBContent[];
+  wide?: boolean;
+}
+
+export default function StreamingHome() {
+  const [hero, setHero] = useState<TMDBContent | null>(null);
+  const [rows, setRows] = useState<CatalogRow[]>([]);
+  const [genres, setGenres] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<TMDBContent[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  type NavFilter = "all" | "movies" | "series" | "trending";
+  const [activeFilter, setActiveFilter] = useState<NavFilter>("all");
+
+  const [selectedContent, setSelectedContent] = useState<TMDBContent | null>(null);
+  const [selectedDetails, setSelectedDetails] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+
+
+  const [headerScrolled, setHeaderScrolled] = useState(false);
+
+  // Scroll detection for header style
+  useEffect(() => {
+    const onScroll = () => setHeaderScrolled(window.scrollY > 60);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Load catalog data
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        const [
+          trendingMovies,
+          trendingShows,
+          popularMovies,
+          popularShows,
+          topMovies,
+          topShows,
+          movieGenreList,
+          showGenreList,
+        ] = await Promise.all([
+          getTrendingContent("movie"),
+          getTrendingContent("tv"),
+          getPopularContent("movie"),
+          getPopularContent("tv"),
+          getTopRatedContent("movie"),
+          getTopRatedContent("tv"),
+          getGenres("movie"),
+          getGenres("tv"),
+        ]);
+
+        // Build genre map
+        const genreMap: Record<string, string> = {};
+        [...movieGenreList, ...showGenreList].forEach((g) => {
+          genreMap[String(g.id)] = g.name;
+        });
+        setGenres(genreMap);
+
+        // Hero = first trending movie with backdrop
+        const heroItem = trendingMovies.find((m) => m.backdrop_path) ?? trendingMovies[0] ?? null;
+        setHero(heroItem);
+
+        setRows([
+          { title: "Filmes em Alta", items: trendingMovies, wide: true },
+          { title: "Séries em Alta", items: trendingShows, wide: true },
+          { title: "Filmes Populares", items: popularMovies },
+          { title: "Séries Populares", items: popularShows },
+          { title: "Filmes Mais Bem Avaliados", items: topMovies },
+          { title: "Séries Mais Bem Avaliadas", items: topShows },
+        ]);
+      } catch (err) {
+        console.error("[v0] Erro ao carregar catálogo:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  // Dynamic search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      const results = await searchContent(searchQuery);
+      setSearchResults(results);
+      setSearchLoading(false);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSelectContent = useCallback(async (content: TMDBContent) => {
+    setSelectedContent(content);
+    setDetailLoading(true);
+    const details = await getContentDetails(
+      content.id,
+      isMovie(content) ? "movie" : "tv"
+    );
+    setSelectedDetails(details);
+    setDetailLoading(false);
+  }, []);
+
+  // Filtra rows pelo filtro ativo
+  const filteredRows = useMemo(() => {
+    if (activeFilter === "all") return rows;
+    if (activeFilter === "movies") return rows.filter((r) => r.title.toLowerCase().includes("filme"));
+    if (activeFilter === "series") return rows.filter((r) => r.title.toLowerCase().includes("séri"));
+    if (activeFilter === "trending") return rows.filter((r) => r.title.toLowerCase().includes("em alta"));
+    return rows;
+  }, [rows, activeFilter]);
+
+  const isSearching = searchQuery.trim().length > 0;
+
+  return (
+    <div className="min-h-screen bg-[#141414] text-white overflow-x-hidden">
+      {/* ── Header ── */}
+      <header
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+          headerScrolled
+            ? "bg-[#141414]/95 backdrop-blur-md shadow-lg shadow-black/40"
+            : "bg-gradient-to-b from-black/80 to-transparent"
+        )}
+      >
+        <div className="flex items-center gap-8 px-4 md:px-12 py-4">
+          {/* Logo */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Film className="w-7 h-7 text-red-500" />
+            <span className="text-xl font-black text-red-500 tracking-tight">
+              FilmesTreino
+            </span>
+          </div>
+
+          {/* Nav links */}
+          <nav className="hidden md:flex items-center gap-6 text-sm text-white/70">
+            {([
+              { key: "all" as NavFilter, label: "Inicio" },
+              { key: "movies" as NavFilter, label: "Filmes" },
+              { key: "series" as NavFilter, label: "Series" },
+              { key: "trending" as NavFilter, label: "Em Alta" },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => { setActiveFilter(key); setSearchQuery(""); }}
+                className={cn(
+                  "transition-colors hover:text-white",
+                  activeFilter === key ? "text-white font-semibold" : ""
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Search */}
+          <div className="flex-1 max-w-xs ml-auto relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50 pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="Pesquisar..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 bg-black/60 border-white/20 text-white placeholder:text-white/40 focus:border-red-500 focus:ring-red-500/30 h-9 text-sm rounded-full"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"
+                aria-label="Limpar pesquisa"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="pt-24">
-        {/* Hero skeleton */}
-        <div className="h-[70vh] min-h-[500px] w-full bg-gradient-to-t from-background to-muted/20">
-          <div className="absolute bottom-0 left-0 p-8">
-            <Skeleton className="mb-4 h-12 w-96" />
-            <Skeleton className="mb-2 h-4 w-64" />
-            <Skeleton className="mb-4 h-20 w-[500px]" />
-            <div className="flex gap-3">
-              <Skeleton className="h-10 w-32" />
-              <Skeleton className="h-10 w-40" />
-            </div>
-          </div>
-        </div>
+      {/* ── Hero ── */}
+      {!isSearching && (
+        <HeroBanner
+          content={hero}
+          loading={loading}
+          onPlay={handleSelectContent}
+          onInfo={handleSelectContent}
+        />
+      )}
 
-        {/* Content rows skeleton */}
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="px-4 py-8 md:px-8">
-            <Skeleton className="mb-4 h-6 w-48" />
-            <div className="flex gap-3">
-              {[1, 2, 3, 4, 5, 6].map((j) => (
-                <Skeleton key={j} className="h-64 w-44 shrink-0 rounded-md" />
-              ))}
-            </div>
+      {/* ── Content ── */}
+      <main className={cn("relative z-10", !isSearching && "-mt-20 md:-mt-28")}>
+        {isSearching ? (
+          <div className="pt-24">
+            {searchLoading ? (
+              <div className="px-4 md:px-12 py-8 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2 md:gap-3">
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <Skeleton key={i} className="w-full h-60 md:h-64 rounded-md bg-white/10" />
+                ))}
+              </div>
+            ) : (
+              <SearchResults
+                results={searchResults}
+                query={searchQuery}
+                onSelect={handleSelectContent}
+              />
+            )}
           </div>
-        ))}
+        ) : (
+          <div className="flex flex-col gap-8 pb-16">
+            {loading
+              ? [1, 2, 3, 4].map((i) => (
+                  <ContentRow
+                    key={i}
+                    title=""
+                    items={[]}
+                    onSelect={() => {}}
+                    loading
+                  />
+                ))
+              : filteredRows.map((row) => (
+                  <ContentRow
+                    key={row.title}
+                    title={row.title}
+                    items={row.items}
+                    onSelect={handleSelectContent}
+                    wide={row.wide}
+                  />
+                ))}
+          </div>
+        )}
       </main>
+
+      {/* ── Detail Modal ── */}
+      <DetailModal
+        content={selectedContent}
+        details={selectedDetails}
+        genres={genres}
+        onClose={() => {
+          setSelectedContent(null);
+          setSelectedDetails(null);
+        }}
+      />
     </div>
   );
 }
