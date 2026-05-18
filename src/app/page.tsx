@@ -341,7 +341,7 @@ function DetailModal({ content, details, genres, onClose }: DetailModalProps) {
                       <iframe
                         width="100%"
                         height="100%"
-                        src={`${trailerUrl}?rel=0&modestbranding=1`}
+                        src={`${trailerUrl}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`}
                         title={`Trailer — ${getTitle(content)}`}
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -554,9 +554,6 @@ export default function StreamingHome() {
   const [searchResults, setSearchResults] = useState<TMDBContent[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
-  type NavFilter = "all" | "movies" | "series" | "trending";
-  const [activeFilter, setActiveFilter] = useState<NavFilter>("all");
-
   const [selectedContent, setSelectedContent] = useState<TMDBContent | null>(null);
   const [selectedDetails, setSelectedDetails] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -651,15 +648,6 @@ export default function StreamingHome() {
     setDetailLoading(false);
   }, []);
 
-  // Filtra rows pelo filtro ativo
-  const filteredRows = useMemo(() => {
-    if (activeFilter === "all") return rows;
-    if (activeFilter === "movies") return rows.filter((r) => r.title.toLowerCase().includes("filme"));
-    if (activeFilter === "series") return rows.filter((r) => r.title.toLowerCase().includes("séri"));
-    if (activeFilter === "trending") return rows.filter((r) => r.title.toLowerCase().includes("em alta"));
-    return rows;
-  }, [rows, activeFilter]);
-
   const isSearching = searchQuery.trim().length > 0;
 
   return (
@@ -684,23 +672,10 @@ export default function StreamingHome() {
 
           {/* Nav links */}
           <nav className="hidden md:flex items-center gap-6 text-sm text-white/70">
-            {([
-              { key: "all" as NavFilter, label: "Inicio" },
-              { key: "movies" as NavFilter, label: "Filmes" },
-              { key: "series" as NavFilter, label: "Series" },
-              { key: "trending" as NavFilter, label: "Em Alta" },
-            ]).map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => { setActiveFilter(key); setSearchQuery(""); }}
-                className={cn(
-                  "transition-colors hover:text-white",
-                  activeFilter === key ? "text-white font-semibold" : ""
-                )}
-              >
-                {label}
-              </button>
-            ))}
+            <a href="#" className="text-white font-semibold">Início</a>
+            <a href="#" className="hover:text-white transition-colors">Filmes</a>
+            <a href="#" className="hover:text-white transition-colors">Séries</a>
+            <a href="#" className="hover:text-white transition-colors">Em Alta</a>
           </nav>
 
           {/* Search */}
@@ -766,7 +741,7 @@ export default function StreamingHome() {
                     loading
                   />
                 ))
-              : filteredRows.map((row) => (
+              : rows.map((row) => (
                   <ContentRow
                     key={row.title}
                     title={row.title}
